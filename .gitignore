@@ -1,0 +1,10 @@
+# build
+.gradle/
+build/
+out/
+.intellijPlatform/
+
+# dev
+.idea/
+*.iml
+/.claude/

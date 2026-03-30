@@ -1,0 +1,43 @@
+<idea-plugin>
+    <id>com.snevet.tools</id>
+    <name>snevet tools</name>
+    <vendor>snevet</vendor>
+    <description><![CDATA[
+        Developer productivity tools for JetBrains IDEs.
+        <ul>
+            <li>Quickly diff working copy against the merge base of a configurable branch (default: master)</li>
+        </ul>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>Git4Idea</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <projectService
+            serviceImplementation="com.snevet.tools.SnevetToolsSettings"/>
+        <projectService
+            serviceImplementation="com.snevet.tools.SnevetToolsCoroutineScope"/>
+        <projectConfigurable
+            parentId="tools"
+            instance="com.snevet.tools.SnevetToolsConfigurable"
+            id="com.snevet.tools.settings"
+            displayName="snevet tools"/>
+        <actionPromoter implementation="com.snevet.tools.DiffWithMergeBaseActionPromoter"/>
+        <toolWindow id="snevet tools" anchor="left" icon="/icons/toolWindow.svg"
+                    factoryClass="com.snevet.tools.SnevetToolsWindowFactory"/>
+    </extensions>
+
+    <actions>
+        <action
+            id="com.snevet.tools.DiffWithMergeBase"
+            class="com.snevet.tools.DiffWithMergeBaseAction"
+            text="Diff Working Copy with Merge Base"
+            description="Show diff between working copy and merge base of configured branch">
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl shift M"/>
+            <keyboard-shortcut keymap="Mac OS X" first-keystroke="meta shift M"/>
+            <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="meta shift M"/>
+            <add-to-group group-id="VcsGlobalGroup" anchor="last"/>
+            <add-to-group group-id="Git.MainMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>
