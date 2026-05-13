@@ -20,6 +20,29 @@ A JetBrains IDE plugin that adds a keyboard shortcut to quickly diff your workin
 ./gradlew runIde
 ```
 
+## Local development install
+
+On macOS, build the plugin and install it into a local JetBrains IDE:
+
+```bash
+./gradlew install
+```
+
+This Gradle task is only supported on macOS. It discovers installed JetBrains
+IDEs, prompts for the target IDE when more than one is found, runs
+`:plugins:snevet-tools:buildPlugin`, and installs the newest ZIP from
+`plugins/snevet-tools/build/distributions/` into that IDE's local plugins
+directory. On other operating systems, the task exits with an error instead of
+attempting an install.
+
+Useful options:
+
+```bash
+./gradlew :plugins:snevet-tools:listLocalJetBrainsIdes
+./gradlew install -PlocalIdeIndex=1
+./gradlew install -PlocalIdePath="/Applications/IntelliJ IDEA.app"
+```
+
 ## Installation
 
-Build the plugin, then install the resulting ZIP from `build/distributions/` via `Settings > Plugins > Install Plugin from Disk`.
+Build the plugin, then install the resulting ZIP from `plugins/snevet-tools/build/distributions/` via `Settings > Plugins > Install Plugin from Disk`.
