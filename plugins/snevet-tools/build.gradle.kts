@@ -142,10 +142,22 @@ fun localJetBrainsIdeFromPath(path: String): LocalJetBrainsIde {
             idePath.resolve("Contents/Resources/product-info.json")
         idePath.resolve("product-info.json").isFile ->
             idePath.resolve("product-info.json")
-        idePath.isDirectory ->
-            findProductInfoFiles(idePath).firstOrNull()
+        idePath.isDirectory -> {
+            val matches = findProductInfoFiles(idePath).toList()
+            when (matches.size) {
+                1 -> matches.single()
+                0 -> null
+                else -> throw GradleException(
+                    buildString {
+                        appendLine("Found multiple JetBrains product-info.json files under: $idePath")
+                        matches.sortedBy { it.absolutePath }.forEach { appendLine(" - $it") }
+                        append("Provide a more specific -PlocalIdePath, or point directly to the IDE installation.")
+                    },
+                )
+            }
+        }
         else -> null
-    } ?: throw GradleException("Could not find JetBrains product-info.json under: $idePath")
+    } ?: throw GradleException("Could not find a JetBrains product-info.json under: $idePath")
 
     return jetBrainsIdeFromProductInfo(productInfo)
         ?: throw GradleException("Could not read JetBrains product info from: $productInfo")
