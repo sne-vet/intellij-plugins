@@ -284,7 +284,10 @@ tasks.register("install") {
 
         if (targetPluginDir.exists()) {
             println("Removing previous install: $targetPluginDir")
-            targetPluginDir.deleteRecursively()
+            val removed = targetPluginDir.deleteRecursively()
+            if (!removed && targetPluginDir.exists()) {
+                throw GradleException("Failed to remove previous install: $targetPluginDir")
+            }
         }
 
         selectedIde.pluginsDir.mkdirs()
