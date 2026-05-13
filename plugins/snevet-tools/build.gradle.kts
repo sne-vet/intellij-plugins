@@ -44,18 +44,14 @@ data class LocalJetBrainsIde(
 )
 
 fun localJetBrainsConfigRoot(): File {
-    val osName = System.getProperty("os.name").lowercase(Locale.US)
-    val userHome = System.getProperty("user.home")
+    requireMacOsLocalInstall()
+    return File(System.getProperty("user.home"), "Library/Application Support/JetBrains")
+}
 
-    return when {
-        osName.contains("mac") -> File(userHome, "Library/Application Support/JetBrains")
-        osName.contains("linux") -> File(System.getenv("XDG_CONFIG_HOME") ?: File(userHome, ".config").path, "JetBrains")
-        osName.contains("windows") -> {
-            val appData = System.getenv("APPDATA")
-                ?: throw GradleException("APPDATA is not set; pass -PlocalIdePath=/path/to/ide from a Windows shell")
-            File(appData, "JetBrains")
-        }
-        else -> throw GradleException("Unsupported OS for local JetBrains IDE discovery: ${System.getProperty("os.name")}")
+fun requireMacOsLocalInstall() {
+    val osName = System.getProperty("os.name")
+    if (!osName.lowercase(Locale.US).contains("mac")) {
+        throw GradleException("Local JetBrains IDE install is only supported on macOS. Current OS: $osName")
     }
 }
 
@@ -122,27 +118,15 @@ fun findProductInfoFiles(root: File): Sequence<File> =
     }
 
 fun discoverLocalJetBrainsIdes(): List<LocalJetBrainsIde> {
-    val osName = System.getProperty("os.name").lowercase(Locale.US)
+    requireMacOsLocalInstall()
     val userHome = File(System.getProperty("user.home"))
-
-    val productInfos = when {
-        osName.contains("mac") -> sequenceOf(
-            File("/Applications"),
-            File(userHome, "Applications"),
-            File(userHome, "Library/Application Support/JetBrains/Toolbox/apps"),
-        )
-            .flatMap(::findMacAppBundles)
-            .map { it.resolve("Contents/Resources/product-info.json") }
-
-        osName.contains("linux") -> sequenceOf(
-            File(userHome, ".local/share/JetBrains/Toolbox/apps"),
-            File(userHome, ".local/share/JetBrains"),
-            File("/opt"),
-        ).flatMap(::findProductInfoFiles)
-
-        osName.contains("windows") -> emptySequence()
-        else -> emptySequence()
-    }
+    val productInfos = sequenceOf(
+        File("/Applications"),
+        File(userHome, "Applications"),
+        File(userHome, "Library/Application Support/JetBrains/Toolbox/apps"),
+    )
+        .flatMap(::findMacAppBundles)
+        .map { it.resolve("Contents/Resources/product-info.json") }
 
     return productInfos
         .mapNotNull(::jetBrainsIdeFromProductInfo)
