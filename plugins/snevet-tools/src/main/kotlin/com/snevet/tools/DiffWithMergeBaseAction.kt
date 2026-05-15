@@ -9,6 +9,8 @@ import com.intellij.openapi.application.EDT
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindowManager
@@ -207,6 +209,14 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
         val browser = MergeBaseChangesBrowser(project)
         browser.viewer.setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION)
 
+        browser.viewer.addMouseListener(object : java.awt.event.MouseAdapter() {
+            override fun mouseClicked(e: java.awt.event.MouseEvent) {
+                if (e.clickCount == 2) {
+                    openSelectedFile(project, browser.selectedChanges.firstOrNull())
+                }
+            }
+        })
+
         val diffProcessor = MergeBaseDiffRequestProcessor(project, browser, changes)
         val diffPreview = MergeBaseEditorDiffPreview(diffProcessor, browser, title)
         browser.setShowDiffActionPreview(diffPreview)
@@ -234,6 +244,12 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
         val project = e.project
         e.presentation.isEnabledAndVisible = project != null &&
             GitRepositoryManager.getInstance(project).repositories.isNotEmpty()
+    }
+
+    private fun openSelectedFile(project: Project, change: Change?) {
+        val file = change?.afterRevision?.file ?: change?.beforeRevision?.file ?: return
+        val virtualFile = LocalFileSystem.getInstance().findFileByPath(file.path) ?: return
+        FileEditorManager.getInstance(project).openFile(virtualFile, true)
     }
 
     private fun expandBracePath(raw: String): String {
