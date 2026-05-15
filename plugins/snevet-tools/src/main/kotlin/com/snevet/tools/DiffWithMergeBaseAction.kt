@@ -28,6 +28,7 @@ import com.intellij.openapi.vcs.changes.CurrentContentRevision
 import com.intellij.openapi.vcs.changes.ui.SimpleAsyncChangesBrowser
 import com.intellij.openapi.vcs.changes.ui.SimpleTreeEditorDiffPreview
 import com.intellij.openapi.vcs.changes.ui.VcsTreeModelData
+import java.awt.event.MouseEvent
 import com.intellij.openapi.vcs.history.VcsRevisionNumber
 import com.intellij.vcsUtil.VcsUtil
 import git4idea.GitContentRevision
@@ -210,10 +211,12 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
         browser.viewer.setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION)
 
         browser.viewer.addMouseListener(object : java.awt.event.MouseAdapter() {
-            override fun mouseClicked(e: java.awt.event.MouseEvent) {
-                if (e.clickCount == 2) {
-                    openSelectedFile(project, browser.selectedChanges.firstOrNull())
-                }
+            override fun mouseClicked(e: MouseEvent) {
+                if (e.button != MouseEvent.BUTTON1 || e.clickCount != 2) return
+
+                val clickedPath = browser.viewer.getPathForLocation(e.x, e.y) ?: return
+                browser.viewer.selectionPath = clickedPath
+                openSelectedFile(project, browser.selectedChanges.firstOrNull())
             }
         })
 
