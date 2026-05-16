@@ -17,7 +17,8 @@ class SnevetToolsConfigurable(private val project: Project) : BoundConfigurable(
                 textField()
                     .bindText(settings::baseBranch)
                     .columns(20)
-                    .comment("Branch to compute merge base from (e.g. master, main, develop)")
+                    .applyToComponent { emptyText.text = "master" }
+                    .comment("Branch to compute merge base from. When empty, falls back to master or main.")
             }
             row {
                 checkBox("Use origin/<base branch> instead of local branch")
