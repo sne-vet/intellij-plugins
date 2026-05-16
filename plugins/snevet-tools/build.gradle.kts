@@ -22,6 +22,9 @@ dependencies {
         intellijIdeaCommunity("2024.2")
         bundledPlugins("Git4Idea")
     }
+    testImplementation(platform("org.junit:junit-bom:5.11.4"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 intellijPlatform {
@@ -31,6 +34,10 @@ intellijPlatform {
         }
     }
     buildSearchableOptions = false
+}
+
+tasks.test {
+    useJUnitPlatform()
 }
 
 data class LocalJetBrainsIde(
