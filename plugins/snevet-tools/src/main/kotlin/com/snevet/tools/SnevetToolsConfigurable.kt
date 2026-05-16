@@ -16,7 +16,7 @@ class SnevetToolsConfigurable(private val project: Project) : BoundConfigurable(
                 textField()
                     .bindText(settings::baseBranch)
                     .columns(20)
-                    .comment("Branch to compute merge base from (e.g. master, main, develop)")
+                    .comment("Branch to compute merge base from (default: master or main; e.g. develop)")
             }
         }
     }

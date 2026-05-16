@@ -14,7 +14,7 @@ import com.intellij.util.xmlb.XmlSerializerUtil
 )
 class SnevetToolsSettings : PersistentStateComponent<SnevetToolsSettings> {
 
-    var baseBranch: String = "master"
+    var baseBranch: String = "master or main"
 
     override fun getState(): SnevetToolsSettings = this
 

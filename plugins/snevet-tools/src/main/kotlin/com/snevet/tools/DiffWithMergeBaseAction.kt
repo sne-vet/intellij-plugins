@@ -50,7 +50,6 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val settings = SnevetToolsSettings.getInstance(project)
-        val baseBranch = settings.baseBranch
 
         val repoManager = GitRepositoryManager.getInstance(project)
         val repositories = repoManager.repositories
@@ -69,6 +68,7 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
         }
 
         val repository = repositories.first()
+        val baseBranch = resolveBaseBranch(repository, settings.baseBranch)
 
         SnevetToolsCoroutineScope.getInstance(project).cs.launch {
             try {
@@ -97,6 +97,21 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
                 }
             }
         }
+    }
+
+
+    private fun resolveBaseBranch(repository: GitRepository, configuredBaseBranch: String): String {
+        val configured = configuredBaseBranch.trim()
+        if (configured.equals("master or main", ignoreCase = true)) {
+            val branchNames = repository.branches.localBranches.map { it.name }.toSet()
+            return when {
+                "master" in branchNames -> "master"
+                "main" in branchNames -> "main"
+                else -> "master"
+            }
+        }
+
+        return configured
     }
 
     private fun findMergeBase(project: Project, repository: GitRepository, baseBranch: String): String {

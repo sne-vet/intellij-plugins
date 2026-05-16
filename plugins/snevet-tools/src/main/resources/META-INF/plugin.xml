@@ -5,7 +5,7 @@
     <description><![CDATA[
         Developer productivity tools for JetBrains IDEs.
         <ul>
-            <li>Quickly diff working copy against the merge base of a configurable branch (default: master)</li>
+            <li>Quickly diff working copy against the merge base of a configurable branch (default: master or main)</li>
         </ul>
     ]]></description>
 

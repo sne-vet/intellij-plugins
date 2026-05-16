@@ -5,7 +5,7 @@ A JetBrains IDE plugin that adds a keyboard shortcut to quickly diff your workin
 ## Features
 
 - **Diff with merge base** — Press `Cmd+Shift+M` (Mac) or `Ctrl+Shift+M` (Windows/Linux) to see all changes since your branch diverged from the base branch
-- **Configurable base branch** — Set the branch to compute the merge base from per-project in `Settings > Tools > snevet tools` (defaults to `master`)
+- **Configurable base branch** — Set the branch to compute the merge base from per-project in `Settings > Tools > snevet tools` (defaults to `master` or `main`, whichever exists)
 - **Works with any JetBrains IDE** — IntelliJ IDEA, WebStorm, PyCharm, GoLand, etc.
 
 ## Building
