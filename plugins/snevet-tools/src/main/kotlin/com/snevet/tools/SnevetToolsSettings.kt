@@ -15,6 +15,7 @@ import com.intellij.util.xmlb.XmlSerializerUtil
 class SnevetToolsSettings : PersistentStateComponent<SnevetToolsSettings> {
 
     var baseBranch: String = "master"
+    var diffAgainstOrigin: Boolean = false
 
     override fun getState(): SnevetToolsSettings = this
 

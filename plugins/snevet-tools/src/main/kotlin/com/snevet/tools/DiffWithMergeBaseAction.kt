@@ -51,6 +51,7 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
         val project = e.project ?: return
         val settings = SnevetToolsSettings.getInstance(project)
         val baseBranch = settings.baseBranch
+        val targetBranch = if (settings.diffAgainstOrigin) "origin/$baseBranch" else baseBranch
 
         val repoManager = GitRepositoryManager.getInstance(project)
         val repositories = repoManager.repositories
@@ -72,26 +73,26 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
 
         SnevetToolsCoroutineScope.getInstance(project).cs.launch {
             try {
-                val changes = withBackgroundProgress(project, "Computing diff with $baseBranch...") {
+                val changes = withBackgroundProgress(project, "Computing diff with $targetBranch...") {
                     withContext(Dispatchers.IO) {
-                        computeChanges(project, repository, baseBranch)
+                        computeChanges(project, repository, targetBranch)
                     }
                 }
                 withContext(Dispatchers.EDT) {
                     if (changes.isEmpty()) {
-                        Messages.showInfoMessage(project, "No changes found compared to '$baseBranch'.", "snevet tools")
+                        Messages.showInfoMessage(project, "No changes found compared to '$targetBranch'.", "snevet tools")
                     } else {
-                        showChanges(project, changes, baseBranch)
+                        showChanges(project, changes, targetBranch)
                     }
                 }
             } catch (ex: ProcessCanceledException) {
                 throw ex
             } catch (ex: Exception) {
-                LOG.warn("Failed to compute diff with '$baseBranch'", ex)
+                LOG.warn("Failed to compute diff with '$targetBranch'", ex)
                 withContext(Dispatchers.EDT) {
                     Messages.showErrorDialog(
                         project,
-                        "Failed to compute diff with '$baseBranch':\n${ex.message}",
+                        "Failed to compute diff with '$targetBranch':\n${ex.message}",
                         "snevet tools"
                     )
                 }
