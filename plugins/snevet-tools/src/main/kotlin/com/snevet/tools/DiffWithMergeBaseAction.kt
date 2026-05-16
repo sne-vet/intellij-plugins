@@ -9,6 +9,8 @@ import com.intellij.openapi.application.EDT
 import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.Disposer
 import com.intellij.openapi.wm.ToolWindowManager
@@ -26,6 +28,7 @@ import com.intellij.openapi.vcs.changes.CurrentContentRevision
 import com.intellij.openapi.vcs.changes.ui.SimpleAsyncChangesBrowser
 import com.intellij.openapi.vcs.changes.ui.SimpleTreeEditorDiffPreview
 import com.intellij.openapi.vcs.changes.ui.VcsTreeModelData
+import java.awt.event.MouseEvent
 import com.intellij.openapi.vcs.history.VcsRevisionNumber
 import com.intellij.vcsUtil.VcsUtil
 import git4idea.GitContentRevision
@@ -42,6 +45,22 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
 
     companion object {
         private val LOG = logger<DiffWithMergeBaseAction>()
+
+        internal fun expandBracePath(raw: String): String {
+            val braceOpen = raw.indexOf('{')
+            val braceClose = raw.indexOf('}')
+            val arrow = raw.indexOf(" => ", braceOpen.coerceAtLeast(0))
+            return if (braceOpen >= 0 && arrow in braceOpen until braceClose) {
+                val prefix = raw.substring(0, braceOpen)
+                val newPart = raw.substring(arrow + 4, braceClose)
+                val suffix = raw.substring(braceClose + 1)
+                "$prefix$newPart$suffix"
+            } else if (raw.contains(" => ")) {
+                raw.substringAfter(" => ")
+            } else {
+                raw
+            }
+        }
     }
 
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
@@ -222,6 +241,16 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
         val browser = MergeBaseChangesBrowser(project)
         browser.viewer.setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION)
 
+        browser.viewer.addMouseListener(object : java.awt.event.MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                if (e.button != MouseEvent.BUTTON1 || e.clickCount != 2) return
+
+                val clickedPath = browser.viewer.getPathForLocation(e.x, e.y) ?: return
+                browser.viewer.selectionPath = clickedPath
+                openSelectedFile(project, browser.selectedChanges.firstOrNull())
+            }
+        })
+
         val diffProcessor = MergeBaseDiffRequestProcessor(project, browser, changes)
         val diffPreview = MergeBaseEditorDiffPreview(diffProcessor, browser, title)
         browser.setShowDiffActionPreview(diffPreview)
@@ -251,20 +280,10 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
             GitRepositoryManager.getInstance(project).repositories.isNotEmpty()
     }
 
-    private fun expandBracePath(raw: String): String {
-        val braceOpen = raw.indexOf('{')
-        val braceClose = raw.indexOf('}')
-        val arrow = raw.indexOf(" => ", braceOpen.coerceAtLeast(0))
-        return if (braceOpen >= 0 && arrow in braceOpen until braceClose) {
-            val prefix = raw.substring(0, braceOpen)
-            val newPart = raw.substring(arrow + 4, braceClose)
-            val suffix = raw.substring(braceClose + 1)
-            "$prefix$newPart$suffix"
-        } else if (raw.contains(" => ")) {
-            raw.substringAfter(" => ")
-        } else {
-            raw
-        }
+    private fun openSelectedFile(project: Project, change: Change?) {
+        val file = change?.afterRevision?.file ?: change?.beforeRevision?.file ?: return
+        val virtualFile = LocalFileSystem.getInstance().findFileByPath(file.path) ?: return
+        FileEditorManager.getInstance(project).openFile(virtualFile, true)
     }
 
     private class BinaryPlaceholderRevision(
