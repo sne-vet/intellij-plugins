@@ -45,6 +45,22 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
 
     companion object {
         private val LOG = logger<DiffWithMergeBaseAction>()
+
+        internal fun expandBracePath(raw: String): String {
+            val braceOpen = raw.indexOf('{')
+            val braceClose = raw.indexOf('}')
+            val arrow = raw.indexOf(" => ", braceOpen.coerceAtLeast(0))
+            return if (braceOpen >= 0 && arrow in braceOpen until braceClose) {
+                val prefix = raw.substring(0, braceOpen)
+                val newPart = raw.substring(arrow + 4, braceClose)
+                val suffix = raw.substring(braceClose + 1)
+                "$prefix$newPart$suffix"
+            } else if (raw.contains(" => ")) {
+                raw.substringAfter(" => ")
+            } else {
+                raw
+            }
+        }
     }
 
     override fun getActionUpdateThread() = ActionUpdateThread.BGT
@@ -253,22 +269,6 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
         val file = change?.afterRevision?.file ?: change?.beforeRevision?.file ?: return
         val virtualFile = LocalFileSystem.getInstance().findFileByPath(file.path) ?: return
         FileEditorManager.getInstance(project).openFile(virtualFile, true)
-    }
-
-    private fun expandBracePath(raw: String): String {
-        val braceOpen = raw.indexOf('{')
-        val braceClose = raw.indexOf('}')
-        val arrow = raw.indexOf(" => ", braceOpen.coerceAtLeast(0))
-        return if (braceOpen >= 0 && arrow in braceOpen until braceClose) {
-            val prefix = raw.substring(0, braceOpen)
-            val newPart = raw.substring(arrow + 4, braceClose)
-            val suffix = raw.substring(braceClose + 1)
-            "$prefix$newPart$suffix"
-        } else if (raw.contains(" => ")) {
-            raw.substringAfter(" => ")
-        } else {
-            raw
-        }
     }
 
     private class BinaryPlaceholderRevision(
