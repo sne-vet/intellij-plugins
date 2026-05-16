@@ -3,6 +3,7 @@ package com.snevet.tools
 import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.project.Project
 import com.intellij.ui.dsl.builder.bindText
+import com.intellij.ui.dsl.builder.bindSelected
 import com.intellij.ui.dsl.builder.columns
 import com.intellij.ui.dsl.builder.panel
 
@@ -17,6 +18,11 @@ class SnevetToolsConfigurable(private val project: Project) : BoundConfigurable(
                     .bindText(settings::baseBranch)
                     .columns(20)
                     .comment("Branch to compute merge base from (e.g. master, main, develop)")
+            }
+            row {
+                checkBox("Use origin/<base branch> instead of local branch")
+                    .bindSelected(settings::diffAgainstOrigin)
+                    .comment("When enabled, compare against the remote-tracking branch (for example, origin/main)")
             }
         }
     }
