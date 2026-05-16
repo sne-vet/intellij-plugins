@@ -38,6 +38,8 @@ import git4idea.commands.GitCommand
 import git4idea.commands.GitLineHandler
 import git4idea.repo.GitRepository
 import git4idea.repo.GitRepositoryManager
+import java.awt.event.FocusAdapter
+import java.awt.event.FocusEvent
 import java.io.File
 import javax.swing.tree.TreeSelectionModel
 
@@ -241,6 +243,13 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
         val diffPreview = MergeBaseEditorDiffPreview(diffProcessor, browser, title)
         browser.setShowDiffActionPreview(diffPreview)
         browser.setChangesToDisplay(changes)
+        browser.viewer.addFocusListener(object : FocusAdapter() {
+            override fun focusGained(e: FocusEvent?) {
+                if (browser.selectedChanges.isNotEmpty()) {
+                    diffPreview.openPreview(false)
+                }
+            }
+        })
         browser.viewer.invokeAfterRefresh {
             if (browser.selectedChanges.isEmpty()) {
                 browser.selectEntries(listOf(changes.first()))
