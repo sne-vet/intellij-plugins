@@ -47,6 +47,7 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
 
     companion object {
         private val LOG = logger<DiffWithMergeBaseAction>()
+        internal val DEFAULT_BASE_BRANCH_CANDIDATES = listOf("master", "main")
 
         internal fun expandBracePath(raw: String): String {
             val braceOpen = raw.indexOf('{')
@@ -71,8 +72,8 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val settings = SnevetToolsSettings.getInstance(project)
-        val baseBranch = settings.baseBranch
-        val targetBranch = if (settings.diffAgainstOrigin) "origin/$baseBranch" else baseBranch
+        val configuredBranch = settings.baseBranch.trim()
+        val diffAgainstOrigin = settings.diffAgainstOrigin
 
         val repoManager = GitRepositoryManager.getInstance(project)
         val repositories = repoManager.repositories
@@ -93,7 +94,12 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
         val repository = repositories.first()
 
         SnevetToolsCoroutineScope.getInstance(project).cs.launch {
+            var targetBranch = ""
             try {
+                val baseBranch = withContext(Dispatchers.IO) {
+                    resolveBaseBranch(project, repository, configuredBranch, diffAgainstOrigin)
+                }
+                targetBranch = if (diffAgainstOrigin) "origin/$baseBranch" else baseBranch
                 val changes = withBackgroundProgress(project, "Computing diff with $targetBranch...") {
                     withContext(Dispatchers.IO) {
                         computeChanges(project, repository, targetBranch)
@@ -109,16 +115,45 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
             } catch (ex: ProcessCanceledException) {
                 throw ex
             } catch (ex: Exception) {
-                LOG.warn("Failed to compute diff with '$targetBranch'", ex)
+                val errorContext = if (targetBranch.isEmpty()) "" else " with '$targetBranch'"
+                LOG.warn("Failed to compute diff$errorContext", ex)
                 withContext(Dispatchers.EDT) {
                     Messages.showErrorDialog(
                         project,
-                        "Failed to compute diff with '$targetBranch':\n${ex.message}",
+                        "Failed to compute diff$errorContext:\n${ex.message}",
                         "snevet tools"
                     )
                 }
             }
         }
+    }
+
+    private fun resolveBaseBranch(
+        project: Project,
+        repository: GitRepository,
+        configured: String,
+        diffAgainstOrigin: Boolean,
+    ): String {
+        if (configured.isNotBlank()) return configured
+        for (candidate in DEFAULT_BASE_BRANCH_CANDIDATES) {
+            val refToCheck = if (diffAgainstOrigin) "origin/$candidate" else candidate
+            if (refExists(project, repository, refToCheck)) return candidate
+        }
+        val checkedRefs = DEFAULT_BASE_BRANCH_CANDIDATES.joinToString(", ") {
+            val ref = if (diffAgainstOrigin) "origin/$it" else it
+            "'$ref'"
+        }
+        throw VcsException(
+            "No base branch configured and none of $checkedRefs exist. " +
+                "Set a base branch in Settings | Tools | snevet tools."
+        )
+    }
+
+    private fun refExists(project: Project, repository: GitRepository, ref: String): Boolean {
+        val handler = GitLineHandler(project, repository.root, GitCommand.REV_PARSE)
+        handler.addParameters("--verify", "--quiet", ref)
+        handler.setSilent(true)
+        return Git.getInstance().runCommand(handler).success()
     }
 
     private fun findMergeBase(project: Project, repository: GitRepository, baseBranch: String): String {
