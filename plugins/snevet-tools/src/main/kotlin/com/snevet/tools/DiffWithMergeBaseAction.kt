@@ -1,5 +1,6 @@
 package com.snevet.tools
 
+import com.intellij.diff.impl.DiffEditorViewer
 import com.intellij.diff.util.DiffPlaces
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -7,29 +8,27 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.EDT
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.fileEditor.FileEditorManager
-import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.util.Disposer
-import com.intellij.openapi.wm.ToolWindowManager
-import com.intellij.platform.ide.progress.withBackgroundProgress
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.vcs.FilePath
 import com.intellij.openapi.vcs.VcsException
 import com.intellij.openapi.vcs.changes.Change
 import com.intellij.openapi.vcs.changes.ChangeViewDiffRequestProcessor
 import com.intellij.openapi.vcs.changes.ContentRevision
 import com.intellij.openapi.vcs.changes.CurrentContentRevision
+import com.intellij.openapi.vcs.changes.ui.ChangesTree
+import com.intellij.openapi.vcs.changes.ui.ChangesTreeDiffPreviewHandler
 import com.intellij.openapi.vcs.changes.ui.SimpleAsyncChangesBrowser
-import com.intellij.openapi.vcs.changes.ui.SimpleTreeEditorDiffPreview
+import com.intellij.openapi.vcs.changes.ui.TreeHandlerEditorDiffPreview
 import com.intellij.openapi.vcs.changes.ui.VcsTreeModelData
-import java.awt.event.MouseEvent
 import com.intellij.openapi.vcs.history.VcsRevisionNumber
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.openapi.wm.ToolWindowManager
+import com.intellij.platform.ide.progress.withBackgroundProgress
 import com.intellij.vcsUtil.VcsUtil
 import git4idea.GitContentRevision
 import git4idea.GitRevisionNumber
@@ -38,8 +37,13 @@ import git4idea.commands.GitCommand
 import git4idea.commands.GitLineHandler
 import git4idea.repo.GitRepository
 import git4idea.repo.GitRepositoryManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.awt.event.FocusAdapter
 import java.awt.event.FocusEvent
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import java.io.File
 import javax.swing.tree.TreeSelectionModel
 
@@ -264,7 +268,7 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
         val browser = MergeBaseChangesBrowser(project)
         browser.viewer.setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION)
 
-        browser.viewer.addMouseListener(object : java.awt.event.MouseAdapter() {
+        browser.viewer.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
                 if (e.button != MouseEvent.BUTTON1 || e.clickCount != 2) return
 
@@ -274,8 +278,7 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
             }
         })
 
-        val diffProcessor = MergeBaseDiffRequestProcessor(project, browser, changes)
-        val diffPreview = MergeBaseEditorDiffPreview(diffProcessor, browser, title)
+        val diffPreview = MergeBaseEditorDiffPreview(browser, title)
         browser.setShowDiffActionPreview(diffPreview)
         browser.setChangesToDisplay(changes)
         browser.viewer.addFocusListener(object : FocusAdapter() {
@@ -296,7 +299,8 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
         content.setPreferredFocusableComponent(browser.preferredFocusedComponent)
         content.setDisposer(Disposable {
             diffPreview.closePreview()
-            Disposer.dispose(diffProcessor)
+            // Disposes the diff viewer created for the preview tab as well.
+            Disposer.dispose(diffPreview)
             browser.shutdown()
         })
         contentManager.addContent(content)
@@ -329,42 +333,53 @@ class DiffWithMergeBaseAction : DumbAwareAction() {
         override fun createPopupMenuActions(): List<AnAction> = listOf(diffAction)
     }
 
+    /**
+     * Editor-tab diff preview driven by the changes tree.
+     *
+     * Built on [TreeHandlerEditorDiffPreview], the platform's replacement for `SimpleTreeEditorDiffPreview`
+     * (deprecated in 2024.2, removed in 2026.2). The platform creates the diff viewer on demand and keeps it
+     * in sync with the tree selection and model, so no custom [ChangeViewDiffRequestProcessor] is needed.
+     *
+     * The superclass chain differs across platform versions (2024.2 has an intermediate
+     * `ChangesTreeEditorDiffPreview` that 2026.2 folded into [TreeHandlerEditorDiffPreview]), so this
+     * subclass only uses members declared on the same class in every version and never calls `super`
+     * from its overrides. That keeps a single binary compatible with 2024.2 through 2026.2.
+     */
     private class MergeBaseEditorDiffPreview(
-        diffProcessor: MergeBaseDiffRequestProcessor,
         private val browser: SimpleAsyncChangesBrowser,
-        private val title: String
-    ) : SimpleTreeEditorDiffPreview(diffProcessor, browser.viewer, browser, true) {
-        override fun getCurrentName(): String = title
+        private val title: String,
+    ) : TreeHandlerEditorDiffPreview(browser.viewer, MergeBaseDiffPreviewHandler) {
+
+        override fun createViewer(): DiffEditorViewer = createDefaultViewer(DiffPlaces.CHANGES_VIEW)
+
+        override fun getEditorTabName(wrapper: ChangeViewDiffRequestProcessor.Wrapper?): String = title
+
+        /**
+         * Open (or auto-close) the preview whenever the tree selection changes, unless the user is working
+         * in an editor. This matches the previous implementation, which was created with
+         * `isOpenEditorDiffPreviewWithSingleClick = true`.
+         */
+        override fun isOpenPreviewWithSingleClick(): Boolean =
+            !ToolWindowManager.getInstance(project).isEditorComponentActive
 
         override fun returnFocusToTree() {
             browser.preferredFocusedComponent.requestFocusInWindow()
         }
     }
 
-    private class MergeBaseDiffRequestProcessor(
-        project: Project,
-        private val browser: SimpleAsyncChangesBrowser,
-        private val changes: List<Change>
-    ) : ChangeViewDiffRequestProcessor(project, DiffPlaces.CHANGES_VIEW) {
-        override fun iterateSelectedChanges(): Iterable<ChangeViewDiffRequestProcessor.Wrapper> {
-            return VcsTreeModelData.exactlySelected(browser.viewer)
-                .userObjects(Change::class.java)
-                .map { ChangeViewDiffRequestProcessor.ChangeWrapper(it) }
+    /** Maps the tree contents and selection to the changes shown in the diff preview. */
+    private object MergeBaseDiffPreviewHandler : ChangesTreeDiffPreviewHandler() {
+        override fun iterateSelectedChanges(tree: ChangesTree): Iterable<ChangeViewDiffRequestProcessor.Wrapper> =
+            wrap(VcsTreeModelData.selected(tree))
+
+        override fun iterateAllChanges(tree: ChangesTree): Iterable<ChangeViewDiffRequestProcessor.Wrapper> =
+            wrap(VcsTreeModelData.all(tree))
+
+        override fun selectChange(tree: ChangesTree, change: ChangeViewDiffRequestProcessor.Wrapper) {
+            tree.setSelectedChanges(listOf(change.userObject))
         }
 
-        override fun iterateAllChanges(): Iterable<ChangeViewDiffRequestProcessor.Wrapper> {
-            return displayedChanges().map { ChangeViewDiffRequestProcessor.ChangeWrapper(it) }
-        }
-
-        override fun showAllChangesForEmptySelection(): Boolean = false
-
-        override fun selectChange(change: ChangeViewDiffRequestProcessor.Wrapper) {
-            browser.selectEntries(listOf(change.userObject))
-        }
-
-        private fun displayedChanges(): List<Change> {
-            val treeChanges = VcsTreeModelData.all(browser.viewer).userObjects(Change::class.java)
-            return treeChanges.ifEmpty { changes }
-        }
+        private fun wrap(data: VcsTreeModelData): List<ChangeViewDiffRequestProcessor.Wrapper> =
+            data.userObjects(Change::class.java).map { ChangeViewDiffRequestProcessor.ChangeWrapper(it) }
     }
 }

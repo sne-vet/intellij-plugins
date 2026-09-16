@@ -3,6 +3,7 @@ import java.io.File
 import java.util.ArrayDeque
 import java.util.Locale
 import java.util.zip.ZipFile
+import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 
 plugins {
     id("java")
@@ -19,8 +20,11 @@ repositories {
 
 dependencies {
     intellijPlatform {
+        // Compile against the oldest supported platform so the plugin keeps working there;
+        // compatibility with newer IDEs is checked by `verifyPlugin` (see pluginVerification below).
         intellijIdeaCommunity("2024.2")
         bundledPlugins("Git4Idea")
+        pluginVerifier()
     }
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
@@ -31,9 +35,18 @@ intellijPlatform {
     pluginConfiguration {
         ideaVersion {
             sinceBuild = "242"
+            // No upper bound: the plugin only uses APIs that still exist in current IDEs.
+            untilBuild = provider { null }
         }
     }
     buildSearchableOptions = false
+    pluginVerification {
+        ides {
+            // Newest IDE the plugin is verified against. Bump this when a new major version ships;
+            // `./gradlew verifyPlugin` fails on any API the plugin uses that no longer exists there.
+            create(IntelliJPlatformType.WebStorm, "2026.2.2")
+        }
+    }
 }
 
 tasks.test {
