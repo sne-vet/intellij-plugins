@@ -8,6 +8,19 @@ A JetBrains IDE plugin that adds a keyboard shortcut to quickly diff your workin
 - **Configurable base branch** — Set the branch to compute the merge base from per-project in `Settings > Tools > snevet tools` (defaults to `master`)
 - **Works with any JetBrains IDE** — IntelliJ IDEA, WebStorm, PyCharm, GoLand, etc.
 
+## Compatibility
+
+The plugin is compiled against IntelliJ Platform 2024.2 (`since-build` 242) and declares no upper
+build limit. Compatibility with newer IDEs is checked with the IntelliJ Plugin Verifier against the
+IDE version configured in `plugins/snevet-tools/build.gradle.kts` (currently WebStorm 2026.2.2):
+
+```bash
+./gradlew verifyPlugin
+```
+
+When a new major IDE version ships, bump that version and run the task; it fails on any platform
+API the plugin uses that no longer exists.
+
 ## Building
 
 ```bash
